@@ -140,7 +140,7 @@ func (srv *Server) ImageInsert(name, url, path string, out io.Writer, sf *utils.
 	}
 
 	b := NewBuilder(srv.runtime)
-	c, err := b.Create(config)
+	c, _, err := b.Create(config)
 	if err != nil {
 		return "", err
 	}
@@ -859,10 +859,9 @@ func (srv *Server) ImageImport(src, repo, tag string, in io.Reader, out io.Write
 	return nil
 }
 
-func (srv *Server) ContainerCreate(config *Config) (string, error) {
-
+func (srv *Server) ContainerCreate(config *Config) (string, []string, error) {
 	if config.Memory != 0 && config.Memory < 524288 {
-		return "", fmt.Errorf("Memory limit must be given in bytes (minimum 524288 bytes)")
+		return "", nil, fmt.Errorf("Memory limit must be given in bytes (minimum 524288 bytes)")
 	}
 
 	if config.Memory > 0 && !srv.runtime.capabilities.MemoryLimit {
@@ -873,7 +872,7 @@ func (srv *Server) ContainerCreate(config *Config) (string, error) {
 		config.MemorySwap = -1
 	}
 	b := NewBuilder(srv.runtime)
-	container, err := b.Create(config)
+	container, buildWarnings, err := b.Create(config)
 	if err != nil {
 		if srv.runtime.graph.IsNotExist(err) {
 
@@ -882,12 +881,12 @@ func (srv *Server) ContainerCreate(config *Config) (string, error) {
 				tag = DEFAULTTAG
 			}
 
-			return "", fmt.Errorf("No such image: %s (tag: %s)", config.Image, tag)
+			return "", nil, fmt.Errorf("No such image: %s (tag: %s)", config.Image, tag)
 		}
-		return "", err
+		return "", nil, err
 	}
 	srv.LogEvent("create", container.ShortID(), srv.runtime.repositories.ImageName(container.Image))
-	return container.ShortID(), nil
+	return container.ShortID(), buildWarnings, nil
 }
 
 func (srv *Server) ContainerRestart(name string, t int) error {

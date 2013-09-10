@@ -148,7 +148,7 @@ func TestRuntimeCreate(t *testing.T) {
 
 	builder := NewBuilder(runtime)
 
-	container, err := builder.Create(&Config{
+	container, _, err := builder.Create(&Config{
 		Image: GetTestImage(runtime).ID,
 		Cmd:   []string{"ls", "-al"},
 	},
@@ -189,7 +189,7 @@ func TestRuntimeCreate(t *testing.T) {
 	}
 
 	// Make sure crete with bad parameters returns an error
-	_, err = builder.Create(
+	_, _, err = builder.Create(
 		&Config{
 			Image: GetTestImage(runtime).ID,
 		},
@@ -198,7 +198,7 @@ func TestRuntimeCreate(t *testing.T) {
 		t.Fatal("Builder.Create should throw an error when Cmd is missing")
 	}
 
-	_, err = builder.Create(
+	_, _, err = builder.Create(
 		&Config{
 			Image: GetTestImage(runtime).ID,
 			Cmd:   []string{},
@@ -212,7 +212,7 @@ func TestRuntimeCreate(t *testing.T) {
 func TestDestroy(t *testing.T) {
 	runtime := mkRuntime(t)
 	defer nuke(runtime)
-	container, err := NewBuilder(runtime).Create(&Config{
+	container, _, err := NewBuilder(runtime).Create(&Config{
 		Image: GetTestImage(runtime).ID,
 		Cmd:   []string{"ls", "-al"},
 	},
@@ -303,7 +303,7 @@ func startEchoServerContainer(t *testing.T, proto string) (*Runtime, *Container,
 		p = Port(fmt.Sprintf("%s/%s", proto, strPort))
 		ep[p] = struct{}{}
 
-		container, err = NewBuilder(runtime).Create(&Config{
+		container, _, err = NewBuilder(runtime).Create(&Config{
 			Image:        GetTestImage(runtime).ID,
 			Cmd:          []string{"sh", "-c", cmd},
 			PortSpecs:    []string{fmt.Sprintf("%s/%s", strPort, proto)},

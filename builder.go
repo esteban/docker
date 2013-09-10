@@ -5,6 +5,7 @@ import (
 	"github.com/dotcloud/docker/utils"
 	"os"
 	"path"
+	"strings"
 	"time"
 )
 
@@ -27,21 +28,32 @@ func NewBuilder(runtime *Runtime) *Builder {
 	}
 }
 
-func (builder *Builder) Create(config *Config) (*Container, error) {
+func (builder *Builder) Create(config *Config) (*Container, []string, error) {
 	// Lookup image
 	img, err := builder.repositories.LookupImage(config.Image)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	warnings := []string{}
 
 	if img.Config != nil {
+		if img.Config.PortSpecs != nil && warnings != nil {
+			for _, p := range img.Config.PortSpecs {
+				if strings.Contains(p, ":") {
+					warnings = append(warnings, "This image expects private ports to be mapped to public ports on your host. "+
+						"This has been deprecated and the public mappings will not be honored."+
+						"Use -p to publish the ports.")
+					break
+				}
+			}
+		}
 		MergeConfig(config, img.Config)
 	}
 
 	if len(config.Entrypoint) != 0 && config.Cmd == nil {
 		config.Cmd = []string{}
 	} else if config.Cmd == nil || len(config.Cmd) == 0 {
-		return nil, fmt.Errorf("No command specified")
+		return nil, nil, fmt.Errorf("No command specified")
 	}
 
 	// Generate id
@@ -79,12 +91,12 @@ func (builder *Builder) Create(config *Config) (*Container, error) {
 	// Step 1: create the container directory.
 	// This doubles as a barrier to avoid race conditions.
 	if err := os.Mkdir(container.root, 0700); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	resolvConf, err := utils.GetResolvConf()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if len(config.Dns) == 0 && len(builder.runtime.config.Dns) == 0 && utils.CheckLocalDns(resolvConf) {
@@ -103,12 +115,12 @@ func (builder *Builder) Create(config *Config) (*Container, error) {
 		container.ResolvConfPath = path.Join(container.root, "resolv.conf")
 		f, err := os.Create(container.ResolvConfPath)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		defer f.Close()
 		for _, dns := range dns {
 			if _, err := f.Write([]byte("nameserver " + dns + "\n")); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 		}
 	} else {
@@ -117,13 +129,13 @@ func (builder *Builder) Create(config *Config) (*Container, error) {
 
 	// Step 2: save the container json
 	if err := container.ToDisk(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Step 3: register the container
 	if err := builder.runtime.Register(container); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return container, nil
+	return container, warnings, nil
 }
 
 // Commit creates a new filesystem image from the current state of a container.
